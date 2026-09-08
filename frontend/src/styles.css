@@ -1,0 +1,8 @@
+:root { color: #1d2939; background: #f5f7fb; }
+body { margin: 0; min-width: 320px; }
+.grid-shell { width: 100%; height: calc(100vh - 205px); min-height: 420px; border: 1px solid #d9e1ef; border-radius: 10px; overflow: hidden; background: #fff; }
+.ag-theme-quartz { --ag-header-background-color: #edf3fb; --ag-header-foreground-color: #22314a; --ag-row-hover-color: #f4f8fd; --ag-border-color: #d9e1ef; --ag-font-size: 14px; }
+.message { min-height: 240px; display: flex; align-items: center; justify-content: center; gap: 12px; border: 1px solid #d9e1ef; border-radius: 10px; background: #fff; color: #475467; }
+.error-message { color: #b42318; padding: 24px; text-align: center; }
+.cargo-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; padding: 28px; border: 1px solid #d9e1ef; border-radius: 10px; background: #fff; }
+@media (max-width: 700px) { .cargo-form { grid-template-columns: 1fr; } }
