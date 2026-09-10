@@ -135,3 +135,46 @@ class Sefer(models.Model):
 
     def __str__(self):
         return f"{self.origin_branch} → {self.destination_branch}"
+
+class PackageHistory(models.Model):
+
+    class Status(models.TextChoices):
+        CREATED = "CREATED", "Kargoya Verildi"
+        IN_TRANSIT = "IN_TRANSIT", "Yola Çıktı"
+        AT_BRANCH = "AT_BRANCH", "Şubeye Ulaştı"
+        OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtıma Çıktı"
+        DELIVERED = "DELIVERED", "Teslim Edildi"
+
+    package = models.ForeignKey(
+        Package,
+        on_delete=models.PROTECT,
+        related_name="history"
+    )
+
+    sefer = models.ForeignKey(
+        Sefer,
+        on_delete=models.PROTECT,
+        related_name="package_histories",
+    )
+
+    origin_branch = models.ForeignKey(
+        Branch,
+        on_delete=models.PROTECT,
+        related_name="history_origins"
+    )
+
+    destination_branch = models.ForeignKey(
+        Branch,
+        on_delete=models.PROTECT,
+        related_name="history_destinations"
+    )
+
+    sequence_no = models.PositiveIntegerField()
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices
+    )
+
+    def __str__(self):
+        return f"{self.package} - {self.sefer}"

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Branch, Employee, Package, Vehicle, Sefer
+from .models import Branch, Employee, Package, Vehicle, Sefer, PackageHistory
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
@@ -14,7 +14,22 @@ class BranchSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 
+class PackageHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PackageHistory
+        fields = [
+            'id',
+            'sefer',
+            'origin_branch',
+            'destination_branch',
+            'sequence_no',
+            'status',
+        ]
+
+
 class PackageSerializer(serializers.ModelSerializer):
+    history = PackageHistorySerializer(many=True)
+
     class Meta:
         model = Package
         fields = [
@@ -29,12 +44,10 @@ class PackageSerializer(serializers.ModelSerializer):
             'desi',
             'payment_type',
             'tracking_number',
+            'history',
         ]
         read_only_fields = ['tracking_number']
 
-    def create(self, validated_data):
-            validated_data['current_branch'] = validated_data['origin_branch']
-            return Package.objects.create(**validated_data)
 
 class VehicleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -55,5 +68,4 @@ class SeferSerializer(serializers.ModelSerializer):
             'status',
             'loading_date',
         ]
-
         read_only_fields = ['loading_date']
