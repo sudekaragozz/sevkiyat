@@ -20,15 +20,14 @@ class PackageHistorySerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'sefer',
-            'origin_branch',
-            'destination_branch',
-            'sequence_no',
+            'branch',
             'status',
+            'created_at',
         ]
 
 
 class PackageSerializer(serializers.ModelSerializer):
-    history = PackageHistorySerializer(many=True)
+    history = PackageHistorySerializer(many=True, read_only=True)
 
     class Meta:
         model = Package
@@ -46,7 +45,7 @@ class PackageSerializer(serializers.ModelSerializer):
             'tracking_number',
             'history',
         ]
-        read_only_fields = ['tracking_number']
+        read_only_fields = ['tracking_number', 'history']
 
 
 class VehicleSerializer(serializers.ModelSerializer):

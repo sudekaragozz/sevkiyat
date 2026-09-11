@@ -19,12 +19,14 @@ class Package(models.Model):
     employee = models.ForeignKey(
         Employee,
         on_delete=models.PROTECT
+        #bak
     )
 
     origin_branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
         related_name="origin_packages"
+        #bak
     )
 
     destination_branch = models.ForeignKey(
@@ -43,6 +45,7 @@ class Package(models.Model):
         related_name="current_packages",
         null=True,
         blank=True
+        #bak
     )
     sefer = models.ForeignKey(
         "Sefer",
@@ -63,6 +66,7 @@ class Package(models.Model):
         unique=True,
     )
 
+
     def save(self, *args, **kwargs):
         if not self.tracking_number:
             last_package = Package.objects.order_by('-id').first()
@@ -76,6 +80,7 @@ class Package(models.Model):
             self.tracking_number = f"PKG{next_number:010d}"
 
         super().save(*args, **kwargs)
+        #bak
 
     def __str__(self):
         return self.tracking_number or f"Package {self.id}"
@@ -91,9 +96,7 @@ class Sefer(models.Model):
 
     class Status(models.TextChoices):
         PLANNED = "PLANNED", "Planlandı"
-        LOADING = "LOADING", "Yükleniyor"
         IN_TRANSIT = "IN_TRANSIT", "Yolda"
-        ARRIVED = "ARRIVED", "Vardı"
         COMPLETED = "COMPLETED", "Tamamlandı"
 
     vehicle = models.ForeignKey(
@@ -136,13 +139,20 @@ class Sefer(models.Model):
     def __str__(self):
         return f"{self.origin_branch} → {self.destination_branch}"
 
+    def paket_yuklenebilir_mi(self):
+        if self.status != Sefer.Status.PLANNED:
+            return False
+        return True
+
+
 class PackageHistory(models.Model):
 
     class Status(models.TextChoices):
-        CREATED = "CREATED", "Kargoya Verildi"
-        IN_TRANSIT = "IN_TRANSIT", "Yola Çıktı"
-        AT_BRANCH = "AT_BRANCH", "Şubeye Ulaştı"
-        OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtıma Çıktı"
+        AT_BRANCH = "AT_BRANCH", "Şubeye Ulaştı" # branch id dolu
+        LEAVE_BRANCH = "LEAVE_BRANCH", "Şubeden Ayrıldı." # branch id dolu
+        IN_TRANSIT = "IN_TRANSIT", "Yolda" # sefer id dolu
+        LEFT_TRANSIT = "LEFT_TRANSIT", "Sefer bitti" # sefer id dolu
+        OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtıma Çıktı" #
         DELIVERED = "DELIVERED", "Teslim Edildi"
 
     package = models.ForeignKey(
@@ -151,25 +161,30 @@ class PackageHistory(models.Model):
         related_name="history"
     )
 
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True
+    )
+
     sefer = models.ForeignKey(
         Sefer,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="package_histories",
     )
 
-    origin_branch = models.ForeignKey(
+    branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
-        related_name="history_origins"
+        null=True,
+        related_name="dfsifdskfdsğ"
     )
 
-    destination_branch = models.ForeignKey(
-        Branch,
-        on_delete=models.PROTECT,
-        related_name="history_destinations"
-    )
-
-    sequence_no = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    #bak add
 
     status = models.CharField(
         max_length=20,

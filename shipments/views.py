@@ -104,3 +104,4 @@ class SeferViewSet(viewsets.ModelViewSet):
             self.get_serializer(new_sefer).data,
             status=status.HTTP_201_CREATED
         )
+    #viewset
