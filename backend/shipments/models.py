@@ -1,10 +1,14 @@
-from random import choices
 
 from django.db import models
 
 
 class Employee(models.Model):
+    class Role(models.TextChoices):
+        SOFOR = "SOFOR", "Şoför"
+        KURYE = "KURYE", "Kurye"
+
     name = models.CharField(max_length=100)
+    role = models.CharField(max_length=20, choices=Role.choices)
 
     def __str__(self):
         return self.name
@@ -16,17 +20,27 @@ class Branch(models.Model):
         return self.name
 
 class Package(models.Model):
+    class Status(models.TextChoices):
+            AT_BRANCH = "AT_BRANCH", "Şubede"
+            IN_TRANSIT = "IN_TRANSIT", "Yolda"
+            OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtımda"
+            DELIVERED = "DELIVERED", "Teslim Edildi"
+            DELIVERY_FAILED = "DELIVERY_FAILED", "Teslim Edilemedi"
+
+    status = models.CharField(
+            max_length=20, choices=Status.choices, default=Status.AT_BRANCH, db_index=True
+        )
     employee = models.ForeignKey(
         Employee,
         on_delete=models.PROTECT
-        #bak
+        #employee silmeye çalışırsan protectederror
     )
 
     origin_branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
         related_name="origin_packages"
-        #bak
+        #reverse relation
     )
 
     destination_branch = models.ForeignKey(
@@ -45,7 +59,12 @@ class Package(models.Model):
         related_name="current_packages",
         null=True,
         blank=True
-        #bak
+        #null=True demek:
+        #Bu alanın veritabanındaki değeri NULL olabilir.
+        #Yani veritabanında gerçekten değer yok anlamına gelir
+        #blank=True demek:
+        #Kullanıcı bu alanı formda/API'de boş bırakabilir.
+        #Yani Django'nun validasyonunda zorunlu değildir.
     )
     sefer = models.ForeignKey(
         "Sefer",
@@ -66,24 +85,9 @@ class Package(models.Model):
         unique=True,
     )
 
-
-    def save(self, *args, **kwargs):
-        if not self.tracking_number:
-            last_package = Package.objects.order_by('-id').first()
-
-            if last_package:
-                last_number = int(last_package.tracking_number[3:])
-                next_number = last_number + 1
-            else:
-                next_number = 1
-
-            self.tracking_number = f"PKG{next_number:010d}"
-
-        super().save(*args, **kwargs)
-        #bak
-
-    def __str__(self):
-        return self.tracking_number or f"Package {self.id}"
+class Counter(models.Model):
+    name = models.CharField(max_length=50, primary_key=True)
+    value = models.BigIntegerField(default=0)
 
 class Vehicle(models.Model):
         plate_number = models.CharField(max_length=20)
@@ -120,13 +124,6 @@ class Sefer(models.Model):
         on_delete=models.PROTECT,
         related_name="trip_destinations"
     )
-    previous_sefer = models.ForeignKey(
-        "self",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="next_seferler"
-    )
 
     status = models.CharField(
         max_length=20,
@@ -154,6 +151,7 @@ class PackageHistory(models.Model):
         LEFT_TRANSIT = "LEFT_TRANSIT", "Sefer bitti" # sefer id dolu
         OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtıma Çıktı" #
         DELIVERED = "DELIVERED", "Teslim Edildi"
+        DELIVERY_FAILED = "DELIVERY_FAILED", "Teslim Edilemedi"
 
     package = models.ForeignKey(
         Package,
@@ -180,11 +178,12 @@ class PackageHistory(models.Model):
         Branch,
         on_delete=models.PROTECT,
         null=True,
-        related_name="dfsifdskfdsğ"
+        related_name="package_histories"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
-    #bak add
+    #_add kayıt ilk oluşturulduğunda zaman kaydedilir güncellenirse de tarih değişmez
+    #auto_now kayıt her güncellendiğinde tarih de güncellenir
 
     status = models.CharField(
         max_length=20,

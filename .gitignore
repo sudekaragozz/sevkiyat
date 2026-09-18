@@ -2,7 +2,7 @@
 __pycache__/
 *.pyc
 .idea/
-db.sqlite3
-identifier.sqlite
+backend/db.sqlite3
+backend/identifier.sqlite
 node_modules/
 dist/

@@ -5,7 +5,7 @@ from .models import Branch, Employee, Package, Vehicle, Sefer, PackageHistory
 class EmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'role']
 
 
 class BranchSerializer(serializers.ModelSerializer):
@@ -19,15 +19,16 @@ class PackageHistorySerializer(serializers.ModelSerializer):
         model = PackageHistory
         fields = [
             'id',
+            'package',
             'sefer',
             'branch',
+            'employee',
             'status',
             'created_at',
         ]
 
 
 class PackageSerializer(serializers.ModelSerializer):
-    history = PackageHistorySerializer(many=True, read_only=True)
 
     class Meta:
         model = Package
@@ -43,9 +44,8 @@ class PackageSerializer(serializers.ModelSerializer):
             'desi',
             'payment_type',
             'tracking_number',
-            'history',
         ]
-        read_only_fields = ['tracking_number', 'history']
+        read_only_fields = ['tracking_number']
 
 
 class VehicleSerializer(serializers.ModelSerializer):
@@ -55,6 +55,9 @@ class VehicleSerializer(serializers.ModelSerializer):
 
 
 class SeferSerializer(serializers.ModelSerializer):
+
+    package_count = serializers.IntegerField(read_only=True, default=0)
+
     class Meta:
         model = Sefer
         fields = [
@@ -63,8 +66,8 @@ class SeferSerializer(serializers.ModelSerializer):
             'loaded_by',
             'origin_branch',
             'destination_branch',
-            'previous_sefer',
             'status',
             'loading_date',
+            'package_count',
         ]
         read_only_fields = ['loading_date']

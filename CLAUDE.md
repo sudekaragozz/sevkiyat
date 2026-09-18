@@ -1,0 +1,1 @@
+asla ve asla backend'e kod yazma. sadece frontend'e yazabilirsin. adamsın 

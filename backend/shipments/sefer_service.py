@@ -1,12 +1,13 @@
 from django.core.exceptions import ValidationError
 
 from django.db import transaction
-from .models import Sefer, PackageHistory
+from .models import Package, Sefer, PackageHistory
 
 
 class SeferService:
 
     @staticmethod
+    @transaction.atomic
     def start_sefer(sefer):
         if sefer.status != Sefer.Status.PLANNED:
             raise ValidationError(
@@ -23,36 +24,34 @@ class SeferService:
             PackageHistory.objects.create(
                 package=package,
                 sefer=sefer,
-                origin_branch=sefer.origin_branch,
-                destination_branch=sefer.destination_branch,
-                sequence_no=package.history.count() + 1,
-                status=PackageHistory.Status.IN_TRANSIT
+                status=PackageHistory.Status.IN_TRANSIT,
             )
 
         return sefer
 
     @staticmethod
+    @transaction.atomic
     def arrive_sefer(sefer):
         if sefer.status != Sefer.Status.IN_TRANSIT:
             raise ValidationError(
                 "Sadece yolda olan sefer varış yapabilir."
             )
 
-        sefer.status = Sefer.Status.ARRIVED
+        sefer.status = Sefer.Status.COMPLETED
         sefer.save(update_fields=["status"])
 
         for package in sefer.packages.all():
             package.current_branch = sefer.destination_branch
-            package.save(update_fields=["current_branch"])
+            package.sefer = None
+            package.status = Package.Status.AT_BRANCH
+            package.save(update_fields=["current_branch", "sefer", "status"])
 
-            history = package.history.filter(
-                sefer=sefer
-            ).last()
-
-            if history:
-                history.status = PackageHistory.Status.AT_BRANCH
-                history.save(update_fields=["status"])
-
+            PackageHistory.objects.create(
+                package=package,
+                branch=sefer.destination_branch,
+                sefer=sefer,
+                status=PackageHistory.Status.AT_BRANCH,
+            )
         return sefer
 
     @staticmethod
@@ -62,7 +61,7 @@ class SeferService:
         loaded_by,
         destination_branch
     ):
-        if previous_sefer.status != Sefer.Status.ARRIVED:
+        if previous_sefer.status != Sefer.Status.COMPLETED:
             raise ValidationError(
                 "Önceki sefer varış yapmadan yeni sefer oluşturulamaz."
             )
@@ -72,6 +71,4 @@ class SeferService:
             loaded_by=loaded_by,
             origin_branch=previous_sefer.destination_branch,
             destination_branch=destination_branch,
-            previous_sefer=previous_sefer,
         )
-    #@staticmetot
