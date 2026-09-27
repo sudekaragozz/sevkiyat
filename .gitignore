@@ -6,3 +6,6 @@ backend/db.sqlite3
 backend/identifier.sqlite
 node_modules/
 dist/
+.claude/
+CLAUDE.md
+docs/

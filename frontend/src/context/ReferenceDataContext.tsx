@@ -45,7 +45,7 @@ export function ReferenceDataProvider({ children }: { children: ReactNode }) {
   const reloadSefers = useCallback(async () => {
     setSefersLoading(true); setSeferError(null)
     try {
-      const [seferResponse, vehicleResponse] = await Promise.all([fetch('/api/sefer/'), fetch('/api/vehicles/')])
+      const [seferResponse, vehicleResponse] = await Promise.all([fetch('/api/trips/'), fetch('/api/vehicles/')])
       if (!seferResponse.ok || !vehicleResponse.ok) throw new Error('Sefer veya araç listesi alınamadı.')
       const [seferData, vehicleData] = await Promise.all([seferResponse.json(), vehicleResponse.json()])
       setSefers(normalize(seferData)); setVehicles(normalize(vehicleData))
@@ -58,8 +58,8 @@ export function ReferenceDataProvider({ children }: { children: ReactNode }) {
   const employeeNames = useMemo(() => new Map(employees.map((item) => [item.id, item.name])), [employees])
   const branchNames = useMemo(() => new Map(branches.map((item) => [item.id, item.name])), [branches])
   const seferById = useMemo(() => new Map(sefers.map((item) => [item.id, item])), [sefers])
-  const drivers = useMemo(() => employees.filter((item) => item.role === 'SOFOR'), [employees])
-  const couriers = useMemo(() => employees.filter((item) => item.role === 'KURYE'), [employees])
+  const drivers = useMemo(() => employees.filter((item) => item.role === 'DRIVER'), [employees])
+  const couriers = useMemo(() => employees.filter((item) => item.role === 'COURIER'), [employees])
 
   const value = useMemo<ReferenceDataValue>(() => ({
     employees, drivers, couriers, branches, vehicles, sefers,

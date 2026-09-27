@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Branch, Employee, Package, Vehicle, Sefer, PackageHistory
+from .models import Branch, Employee, Package, PackageHistory, Trip, Vehicle
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
@@ -20,7 +20,7 @@ class PackageHistorySerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'package',
-            'sefer',
+            'trip',
             'branch',
             'employee',
             'status',
@@ -29,6 +29,9 @@ class PackageHistorySerializer(serializers.ModelSerializer):
 
 
 class PackageSerializer(serializers.ModelSerializer):
+    # Annotated by PackageViewset from the first/last PackageHistory rows; null elsewhere.
+    created_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    last_movement_at = serializers.DateTimeField(read_only=True, allow_null=True)
 
     class Meta:
         model = Package
@@ -38,14 +41,17 @@ class PackageSerializer(serializers.ModelSerializer):
             'origin_branch',
             'destination_branch',
             'current_branch',
-            'sefer',
+            'trip',
             'recipient_name',
             'recipient_phone',
             'desi',
             'payment_type',
             'tracking_number',
+            'status',
+            'created_at',
+            'last_movement_at',
         ]
-        read_only_fields = ['tracking_number']
+        read_only_fields = ['tracking_number','status']
 
 
 class VehicleSerializer(serializers.ModelSerializer):
@@ -54,12 +60,12 @@ class VehicleSerializer(serializers.ModelSerializer):
         fields = ['id', 'plate_number', 'capacity']
 
 
-class SeferSerializer(serializers.ModelSerializer):
+class TripSerializer(serializers.ModelSerializer):
 
     package_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
-        model = Sefer
+        model = Trip
         fields = [
             'id',
             'vehicle',
