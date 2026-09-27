@@ -5,6 +5,7 @@ import AcceptancePage from './pages/AcceptancePage'
 import EmployeeDetailPage from './pages/EmployeeDetailPage'
 import EmployeesPage from './pages/EmployeesPage'
 import PackageDetailPage from './pages/PackageDetailPage'
+import DistributionsPage from './pages/DistributionsPage'
 import PackagesPage from './pages/PackagesPage'
 import SeferDetailPage from './pages/SeferDetailPage'
 import SefersPage from './pages/SefersPage'
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="packages/:id" element={<PackageDetailPage />} />
           <Route path="sefers" element={<SefersPage />} />
           <Route path="sefers/:id" element={<SeferDetailPage />} />
+          <Route path="distributions" element={<DistributionsPage />} />
           <Route path="employees" element={<EmployeesPage />} />
           <Route path="employees/:id" element={<EmployeeDetailPage />} />
           <Route path="*" element={<Navigate to="/acceptance" replace />} />

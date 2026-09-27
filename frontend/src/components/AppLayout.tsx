@@ -4,6 +4,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined'
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined'
 import AddBoxOutlinedIcon from '@mui/icons-material/AddBoxOutlined'
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined'
+import DeliveryDiningOutlinedIcon from '@mui/icons-material/DeliveryDiningOutlined'
 import { drawerWidth } from '../constants'
 import { useReferenceData } from '../context/ReferenceDataContext'
 
@@ -11,6 +12,7 @@ const navItems = [
   { path: '/acceptance', label: 'Kargo Kabul', icon: <AddBoxOutlinedIcon /> },
   { path: '/packages', label: 'Paketler', icon: <Inventory2OutlinedIcon /> },
   { path: '/sefers', label: 'Seferler', icon: <LocalShippingOutlinedIcon /> },
+  { path: '/distributions', label: 'Dağıtımlar', icon: <DeliveryDiningOutlinedIcon /> },
   { path: '/employees', label: 'Çalışanlar', icon: <PeopleAltOutlinedIcon /> },
 ]
 
