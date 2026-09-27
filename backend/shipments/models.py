@@ -140,6 +140,82 @@ class Trip(models.Model):
         return True
 
 
+class Distribution(models.Model):
+
+    class Status(models.TextChoices):
+        READY_TO_GO = "READY_TO_GO", "Dağıtıma Hazır"
+        OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtımda"
+        COMPLETED = "COMPLETED", "Tamamlandı"
+
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.PROTECT,
+        related_name="distributions"
+    )
+
+    courier = models.ForeignKey(
+        Employee,
+        on_delete=models.PROTECT,
+        related_name="distributions"
+    )
+
+    vehicle = models.ForeignKey(
+        Vehicle,
+        on_delete=models.PROTECT,
+        related_name="distributions"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.READY_TO_GO
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # "Dağıtıma Çıkma Tarihi"
+    started_at = models.DateTimeField(null=True, blank=True)
+
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Dağıtım #{self.pk} - {self.branch}"
+
+
+class DistributionPackage(models.Model):
+
+    class Result(models.TextChoices):
+        PENDING = "PENDING", "Bekliyor"
+        DELIVERED = "DELIVERED", "Teslim Edildi"
+        FAILED = "FAILED", "Teslim Edilemedi"
+
+    distribution = models.ForeignKey(
+        Distribution,
+        on_delete=models.PROTECT,
+        related_name="items"
+    )
+
+    package = models.ForeignKey(
+        Package,
+        on_delete=models.PROTECT,
+        related_name="distribution_items"
+    )
+
+    result = models.CharField(
+        max_length=20,
+        choices=Result.choices,
+        default=Result.PENDING
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["distribution", "package"],
+                name="unique_distribution_package",
+            ),
+        ]
+
+
 class PackageHistory(models.Model):
 
     class Status(models.TextChoices):
@@ -166,6 +242,14 @@ class PackageHistory(models.Model):
 
     trip = models.ForeignKey(
         Trip,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="package_histories",
+    )
+
+    distribution = models.ForeignKey(
+        Distribution,
         on_delete=models.PROTECT,
         null=True,
         blank=True,
