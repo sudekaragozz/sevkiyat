@@ -196,7 +196,7 @@ class PackageService:
 
     @staticmethod
     @transaction.atomic
-    def send_out_for_delivery(*, package_id, employee_id):
+    def send_out_for_delivery(*, package_id, employee_id, distribution=None):
         package = PackageService._lock_package(package_id)
 
         PackageService._check_transition(package, Package.Status.OUT_FOR_DELIVERY)
@@ -214,6 +214,7 @@ class PackageService:
             package=package,
             branch=package.current_branch,
             employee_id=employee_id,
+            distribution=distribution,
             status=PackageHistory.Status.OUT_FOR_DELIVERY,
         )
 
@@ -222,7 +223,7 @@ class PackageService:
 
     @staticmethod
     @transaction.atomic
-    def deliver(*, package_id, employee_id):
+    def deliver(*, package_id, employee_id, distribution=None):
         package = PackageService._lock_package(package_id)
 
         PackageService._check_transition(package, Package.Status.DELIVERED)
@@ -237,6 +238,7 @@ class PackageService:
             package=package,
             branch=delivery_branch,
             employee_id=employee_id,
+            distribution=distribution,
             status=PackageHistory.Status.DELIVERED,
         )
 
@@ -244,7 +246,7 @@ class PackageService:
 
     @staticmethod
     @transaction.atomic
-    def mark_delivery_failed(*, package_id, employee_id):
+    def mark_delivery_failed(*, package_id, employee_id, distribution=None):
         package = PackageService._lock_package(package_id)
 
         PackageService._check_transition(package, Package.Status.DELIVERY_FAILED)
@@ -256,6 +258,7 @@ class PackageService:
             package=package,
             branch=package.current_branch,
             employee_id=employee_id,
+            distribution=distribution,
             status=PackageHistory.Status.DELIVERY_FAILED,
         )
 
