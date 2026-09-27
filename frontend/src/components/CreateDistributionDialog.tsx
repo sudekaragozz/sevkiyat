@@ -8,6 +8,8 @@ import { ReferenceSelect } from './ReferenceSelect'
 
 const steps = ['Şube, Kurye ve Araç', 'Paketler']
 
+const toHundredths = (value: string | number) => Math.round(Number(value) * 100)
+
 // 1. adımda şube/kurye/araç, 2. adımda o şubede dağıtıma hazır paketler seçilir. Dağıtım
 // paketleriyle birlikte tek istekte oluşturulur; kapasite kontrolünün asıl yeri backend'dir.
 export function CreateDistributionDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (distribution: Distribution) => void }) {
@@ -47,9 +49,11 @@ export function CreateDistributionDialog({ open, onClose, onCreated }: { open: b
   // Şube değişince önceki şubenin paket seçimi geçersizdir.
   const changeBranch = (id: number) => { setBranch(id); setSelectedIds([]) }
 
-  const capacity = Number(vehicles.find((item) => item.id === vehicle)?.capacity ?? 0)
+  // Desi 2 ondalıklı; toplam yüzdelik tam sayılarla yapılır, yoksa 1.10 + 2.20 kayan noktada
+  // 3.3000000000000003 olur ve 3.30 kapasiteyi "aşar" (backend kabul ederken Kaydet pasif kalır).
+  const capacity = toHundredths(vehicles.find((item) => item.id === vehicle)?.capacity ?? 0)
   const selectedDesi = useMemo(
-    () => packages.filter((pkg) => selectedIds.includes(pkg.id)).reduce((sum, pkg) => sum + Number(pkg.desi), 0),
+    () => packages.filter((pkg) => selectedIds.includes(pkg.id)).reduce((sum, pkg) => sum + toHundredths(pkg.desi), 0),
     [packages, selectedIds]
   )
   const overCapacity = selectedDesi > capacity
@@ -101,7 +105,7 @@ export function CreateDistributionDialog({ open, onClose, onCreated }: { open: b
         <Box sx={{ maxHeight: 320, overflowY: 'auto', border: '1px solid #e3e9f3', borderRadius: 1.5, p: 1 }}>
           {packages.map((pkg) => <FormControlLabel key={pkg.id} sx={{ display: 'flex', ml: 0 }} control={<Checkbox checked={selectedIds.includes(pkg.id)} onChange={() => toggle(pkg.id)} disabled={submitting} />} label={`${pkg.tracking_number} — ${pkg.recipient_name} (${pkg.desi} desi)`} />)}
         </Box>
-        <Typography sx={{ mt: 2 }} fontWeight={600} color={overCapacity ? 'error.main' : 'text.secondary'}>Seçilen: {selectedDesi.toFixed(2)} desi / Kapasite: {capacity.toFixed(2)} desi</Typography>
+        <Typography sx={{ mt: 2 }} fontWeight={600} color={overCapacity ? 'error.main' : 'text.secondary'}>Seçilen: {(selectedDesi / 100).toFixed(2)} desi / Kapasite: {(capacity / 100).toFixed(2)} desi</Typography>
       </Box>)}
     </DialogContent>
     <DialogActions>

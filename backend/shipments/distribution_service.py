@@ -11,7 +11,7 @@ from .package_service import PackageService
 
 
 def eligible_packages(branch_id):
-    """Packages waiting at their destination branch that are not in an unfinished distribution."""
+    """henüz tamamlanmamis dagitimlardaki paketleri exclude etmek icin"""
     in_unfinished_distribution = DistributionPackage.objects.filter(
         package_id=OuterRef("pk"),
     ).exclude(distribution__status=Distribution.Status.COMPLETED)
@@ -48,8 +48,6 @@ class DistributionService:
         if not package_ids:
             raise ShipmentError("En az bir paket seçilmelidir.", code="no_packages")
 
-        # Kilit, aynı paketin eşzamanlı iki dağıtıma eklenmesini engeller: ikinci istek
-        # birincinin commit'ini bekler ve uygunluk kontrolünde paketi dolu görür.
         packages = list(
             Package.objects.select_for_update().filter(id__in=package_ids).order_by("id")
         )
@@ -133,13 +131,10 @@ class DistributionService:
                 f"{item.package.tracking_number} için sonuç zaten girildi.",
                 code="result_already_set",
             )
-
-        mark = (
-            PackageService.deliver
-            if result == DistributionPackage.Result.DELIVERED
-            else PackageService.mark_delivery_failed
-        )
-        mark(package_id=package_id, employee_id=distribution.courier_id, distribution=distribution)
+        if result == DistributionPackage.Result.DELIVERED:
+            PackageService.deliver(package_id=package_id, employee_id=distribution.courier_id, distribution=distribution)
+        else:
+            PackageService.mark_delivery_failed(package_id=package_id, employee_id=distribution.courier_id, distribution=distribution)
 
         item.result = result
         item.save(update_fields=["result"])
