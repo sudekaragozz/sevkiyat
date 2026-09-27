@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.test import TestCase
+from rest_framework.test import APITestCase
 
 from .distribution_service import DistributionService, eligible_packages
 from .exceptions import ShipmentError
@@ -291,3 +292,125 @@ class DistributionCompleteTests(DistributionFixtures, TestCase):
 
         self.assertEqual(second.items.count(), 1)
         self.assertEqual(first.items.get().result, DistributionPackage.Result.FAILED)
+
+
+class DistributionApiTests(DistributionFixtures, APITestCase):
+
+    def setUp(self):
+        self.setup_fixtures()
+
+    def test_create_returns_distribution_with_package_count(self):
+        package = self.make_package()
+
+        response = self.client.post("/api/distributions/", {
+            "branch": self.branch.id,
+            "courier": self.courier.id,
+            "vehicle": self.vehicle.id,
+            "package_ids": [package.id],
+        }, format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["status"], "READY_TO_GO")
+        self.assertEqual(response.data["package_count"], 1)
+        self.assertIsNone(response.data["started_at"])
+
+    def test_create_business_error_is_400_with_detail(self):
+        package = self.make_package()
+
+        response = self.client.post("/api/distributions/", {
+            "branch": self.branch.id,
+            "courier": self.driver.id,
+            "vehicle": self.vehicle.id,
+            "package_ids": [package.id],
+        }, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("kurye değil", response.data["detail"])
+
+    def test_create_requires_package_ids(self):
+        response = self.client.post("/api/distributions/", {
+            "branch": self.branch.id,
+            "courier": self.courier.id,
+            "vehicle": self.vehicle.id,
+            "package_ids": [],
+        }, format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_list_is_paginated_and_filters_by_status(self):
+        self.create_distribution([self.make_package()])
+
+        response = self.client.get("/api/distributions/?page_number=1&page_size=20&status=READY_TO_GO")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["package_count"], 1)
+
+        response = self.client.get("/api/distributions/?page_number=1&page_size=20&status=COMPLETED")
+        self.assertEqual(response.data["count"], 0)
+
+    def test_filter_options_lists_used_statuses(self):
+        self.create_distribution([self.make_package()])
+
+        response = self.client.get("/api/distributions/filter-options/?field=status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [{"value": "READY_TO_GO", "label": "Dağıtıma Hazır"}])
+
+    def test_eligible_packages_requires_branch(self):
+        response = self.client.get("/api/distributions/eligible-packages/")
+        self.assertEqual(response.status_code, 400)
+
+    def test_eligible_packages_lists_packages(self):
+        package = self.make_package()
+        response = self.client.get(f"/api/distributions/eligible-packages/?branch={self.branch.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item["id"] for item in response.data], [package.id])
+
+    def test_packages_endpoint_includes_result(self):
+        package = self.make_package()
+        distribution = self.create_distribution([package])
+
+        response = self.client.get(f"/api/distributions/{distribution.id}/packages/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["id"], package.id)
+        self.assertEqual(response.data[0]["tracking_number"], package.tracking_number)
+        self.assertEqual(response.data[0]["result"], "PENDING")
+
+    def test_start_result_and_complete_flow(self):
+        delivered, pending = self.make_package(), self.make_package()
+        distribution = self.create_distribution([delivered, pending])
+        base = f"/api/distributions/{distribution.id}"
+
+        response = self.client.post(f"{base}/start/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "OUT_FOR_DELIVERY")
+
+        response = self.client.post(f"{base}/packages/{delivered.id}/result/", {"result": "DELIVERED"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["result"], "DELIVERED")
+
+        response = self.client.post(f"{base}/complete/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "COMPLETED")
+
+    def test_result_endpoint_rejects_invalid_result(self):
+        package = self.make_package()
+        distribution = self.create_distribution([package])
+        self.client.post(f"/api/distributions/{distribution.id}/start/")
+
+        response = self.client.post(
+            f"/api/distributions/{distribution.id}/packages/{package.id}/result/",
+            {"result": "LOST"}, format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_complete_on_ready_distribution_is_400(self):
+        distribution = self.create_distribution([self.make_package()])
+        response = self.client.post(f"/api/distributions/{distribution.id}/complete/")
+        self.assertEqual(response.status_code, 400)
+
+    def test_unknown_distribution_is_404(self):
+        self.assertEqual(self.client.get("/api/distributions/999999/").status_code, 404)
+        self.assertEqual(self.client.post("/api/distributions/999999/start/").status_code, 404)

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Branch, Employee, Package, PackageHistory, Trip, Vehicle
+from .models import Branch, Distribution, DistributionPackage, Employee, Package, PackageHistory, Trip, Vehicle
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
@@ -77,3 +77,39 @@ class TripSerializer(serializers.ModelSerializer):
             'package_count',
         ]
         read_only_fields = ['loading_date']
+
+
+class DistributionSerializer(serializers.ModelSerializer):
+
+    package_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = Distribution
+        fields = [
+            'id',
+            'branch',
+            'courier',
+            'vehicle',
+            'status',
+            'created_at',
+            'started_at',
+            'completed_at',
+            'package_count',
+        ]
+        read_only_fields = ['status', 'created_at', 'started_at', 'completed_at']
+
+
+class DistributionCreateSerializer(serializers.Serializer):
+    branch = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all())
+    courier = serializers.PrimaryKeyRelatedField(queryset=Employee.objects.all())
+    vehicle = serializers.PrimaryKeyRelatedField(queryset=Vehicle.objects.all())
+    package_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+
+
+class DistributionPackageSerializer(serializers.BaseSerializer):
+    """A package in a distribution: the package fields plus this distribution's result for it."""
+
+    def to_representation(self, instance):
+        data = PackageSerializer(instance.package).data
+        data['result'] = instance.result
+        return data
