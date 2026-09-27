@@ -16,3 +16,8 @@ export const historyStatus: Record<string, string> = {
 }
 
 export const seferStatus: Record<string, string> = { PLANNED: 'Planlandı', LOADING: 'Yükleniyor', IN_TRANSIT: 'Yolda', ARRIVED: 'Vardı', COMPLETED: 'Tamamlandı' }
+
+// Matches Distribution.Status and DistributionPackage.Result in shipments/models.py.
+export const distributionStatus: Record<string, string> = { READY_TO_GO: 'Dağıtıma Hazır', OUT_FOR_DELIVERY: 'Dağıtımda', COMPLETED: 'Tamamlandı' }
+
+export const distributionResult: Record<string, string> = { PENDING: 'Bekliyor', DELIVERED: 'Teslim Edildi', FAILED: 'Teslim Edilemedi' }
