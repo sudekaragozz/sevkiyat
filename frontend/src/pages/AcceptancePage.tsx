@@ -58,7 +58,7 @@ export default function AcceptancePage() {
     </Box>
     {createdPackage && <Alert severity="success" sx={{ mt: 3 }}>
       <Typography fontWeight={700}>Kargo oluşturuldu: {createdPackage.tracking_number}</Typography>
-      <Typography>Mevcut şube: {nameOf(branchNames, createdPackage.current_branch)} · Durum: {createdPackage.sefer == null ? '-' : seferStatus[seferById.get(createdPackage.sefer)?.status ?? ''] ?? 'Durum bilinmiyor'}</Typography>
+      <Typography>Mevcut şube: {nameOf(branchNames, createdPackage.current_branch)} · Durum: {createdPackage.trip == null ? '-' : seferStatus[seferById.get(createdPackage.trip)?.status ?? ''] ?? 'Durum bilinmiyor'}</Typography>
       <Typography>Geçmiş: {[...createdHistory].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((item) => historyStatus[item.status] ?? item.status).join(' → ') || 'Yok'}</Typography>
     </Alert>}
   </Box>

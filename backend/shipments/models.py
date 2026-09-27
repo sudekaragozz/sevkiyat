@@ -4,8 +4,8 @@ from django.db import models
 
 class Employee(models.Model):
     class Role(models.TextChoices):
-        SOFOR = "SOFOR", "Şoför"
-        KURYE = "KURYE", "Kurye"
+        DRIVER = "DRIVER", "Şoför"
+        COURIER = "COURIER", "Kurye"
 
     name = models.CharField(max_length=100)
     role = models.CharField(max_length=20, choices=Role.choices)
@@ -13,34 +13,35 @@ class Employee(models.Model):
     def __str__(self):
         return self.name
 
+
 class Branch(models.Model):
     name = models.CharField(max_length=100)
 
     def __str__(self):
         return self.name
 
+
 class Package(models.Model):
     class Status(models.TextChoices):
-            AT_BRANCH = "AT_BRANCH", "Şubede"
-            IN_TRANSIT = "IN_TRANSIT", "Yolda"
-            OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtımda"
-            DELIVERED = "DELIVERED", "Teslim Edildi"
-            DELIVERY_FAILED = "DELIVERY_FAILED", "Teslim Edilemedi"
+        AT_BRANCH = "AT_BRANCH", "Şubede"
+        IN_TRANSIT = "IN_TRANSIT", "Yolda"
+        OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtımda"
+        DELIVERED = "DELIVERED", "Teslim Edildi"
+        DELIVERY_FAILED = "DELIVERY_FAILED", "Teslim Edilemedi"
 
     status = models.CharField(
-            max_length=20, choices=Status.choices, default=Status.AT_BRANCH, db_index=True
-        )
+        max_length=20, choices=Status.choices, default=Status.AT_BRANCH, db_index=True
+    )
     employee = models.ForeignKey(
         Employee,
         on_delete=models.PROTECT
-        #employee silmeye çalışırsan protectederror
     )
 
     origin_branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
         related_name="origin_packages"
-        #reverse relation
+        # reverse relation
     )
 
     destination_branch = models.ForeignKey(
@@ -59,15 +60,9 @@ class Package(models.Model):
         related_name="current_packages",
         null=True,
         blank=True
-        #null=True demek:
-        #Bu alanın veritabanındaki değeri NULL olabilir.
-        #Yani veritabanında gerçekten değer yok anlamına gelir
-        #blank=True demek:
-        #Kullanıcı bu alanı formda/API'de boş bırakabilir.
-        #Yani Django'nun validasyonunda zorunlu değildir.
     )
-    sefer = models.ForeignKey(
-        "Sefer",
+    trip = models.ForeignKey(
+        "Trip",
         on_delete=models.PROTECT,
         null=True,
         blank=True,
@@ -76,27 +71,30 @@ class Package(models.Model):
 
     recipient_name = models.CharField(max_length=100)
 
-    recipient_phone = models.CharField( max_length=20)
+    recipient_phone = models.CharField(max_length=20)
 
-    payment_type = models.CharField( max_length=20)
+    payment_type = models.CharField(max_length=20)
 
     tracking_number = models.CharField(
         max_length=13,
         unique=True,
     )
 
+
 class Counter(models.Model):
     name = models.CharField(max_length=50, primary_key=True)
     value = models.BigIntegerField(default=0)
 
+
 class Vehicle(models.Model):
-        plate_number = models.CharField(max_length=20)
-        capacity = models.DecimalField(max_digits=10, decimal_places=2)
+    plate_number = models.CharField(max_length=20)
+    capacity = models.DecimalField(max_digits=10, decimal_places=2)
 
-        def __str__(self):
-            return self.plate_number
+    def __str__(self):
+        return self.plate_number
 
-class Sefer(models.Model):
+
+class Trip(models.Model):
 
     class Status(models.TextChoices):
         PLANNED = "PLANNED", "Planlandı"
@@ -136,8 +134,8 @@ class Sefer(models.Model):
     def __str__(self):
         return f"{self.origin_branch} → {self.destination_branch}"
 
-    def paket_yuklenebilir_mi(self):
-        if self.status != Sefer.Status.PLANNED:
+    def can_load_packages(self):
+        if self.status != Trip.Status.PLANNED:
             return False
         return True
 
@@ -145,11 +143,11 @@ class Sefer(models.Model):
 class PackageHistory(models.Model):
 
     class Status(models.TextChoices):
-        AT_BRANCH = "AT_BRANCH", "Şubeye Ulaştı" # branch id dolu
-        LEAVE_BRANCH = "LEAVE_BRANCH", "Şubeden Ayrıldı." # branch id dolu
-        IN_TRANSIT = "IN_TRANSIT", "Yolda" # sefer id dolu
-        LEFT_TRANSIT = "LEFT_TRANSIT", "Sefer bitti" # sefer id dolu
-        OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtıma Çıktı" #
+        AT_BRANCH = "AT_BRANCH", "Şubeye Ulaştı"  # branch id dolu
+        LEAVE_BRANCH = "LEAVE_BRANCH", "Şubeden Ayrıldı."  # branch id dolu
+        IN_TRANSIT = "IN_TRANSIT", "Yolda"  # trip id dolu
+        LEFT_TRANSIT = "LEFT_TRANSIT", "Sefer bitti"  # trip id dolu
+        OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtıma Çıktı"
         DELIVERED = "DELIVERED", "Teslim Edildi"
         DELIVERY_FAILED = "DELIVERY_FAILED", "Teslim Edilemedi"
 
@@ -166,8 +164,8 @@ class PackageHistory(models.Model):
         blank=True
     )
 
-    sefer = models.ForeignKey(
-        Sefer,
+    trip = models.ForeignKey(
+        Trip,
         on_delete=models.PROTECT,
         null=True,
         blank=True,
@@ -182,8 +180,6 @@ class PackageHistory(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
-    #_add kayıt ilk oluşturulduğunda zaman kaydedilir güncellenirse de tarih değişmez
-    #auto_now kayıt her güncellendiğinde tarih de güncellenir
 
     status = models.CharField(
         max_length=20,
@@ -191,4 +187,4 @@ class PackageHistory(models.Model):
     )
 
     def __str__(self):
-        return f"{self.package} - {self.sefer}"
+        return f"{self.package} - {self.trip}"

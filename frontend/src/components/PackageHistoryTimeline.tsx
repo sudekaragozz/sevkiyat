@@ -6,8 +6,8 @@ import { nameOf } from '../api/utils'
 
 const formatDate = (value: string) => new Date(value).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
-// Sefer varış kaydı (AT_BRANCH) hem branch hem sefer alanını doldurur (bkz. sefer_service.py
-// arrive_sefer); bu yüzden hangi alanın önce kontrol edileceğine göre değil, kaydın statüsüne
+// Sefer varış kaydı (AT_BRANCH) hem branch hem trip alanını doldurur (bkz. trip_service.py
+// arrive_trip); bu yüzden hangi alanın önce kontrol edileceğine göre değil, kaydın statüsüne
 // göre karar veriyoruz: sadece gerçekten "yolda" durumları sefer güzergahını gösterir.
 const seferBasedStatuses = new Set(['IN_TRANSIT', 'LEFT_TRANSIT'])
 
@@ -20,18 +20,18 @@ export function PackageHistoryTimeline({ history, branchNames, employeeNames, se
     [history]
   )
 
-  // Bir paket sefere yüklenirken (sefere_cikart) ve sefer gerçekten yola çıkınca (start_sefer)
+  // Bir paket sefere yüklenirken (load_to_trip) ve sefer gerçekten yola çıkınca (start_trip)
   // aynı sefer için ayrı ayrı birer IN_TRANSIT kaydı oluşuyor; ilki henüz araç kalkmadan, salt
   // yükleme anında düşüyor ve kullanıcıya "yolda" demek yanıltıcı. Aynı sefer için sadece en son
   // (gerçek kalkış) IN_TRANSIT kaydını gösteriyoruz.
   const displayHistory = useMemo(() => {
     const lastInTransitIndexBySefer = new Map<number, number>()
     sortedHistory.forEach((item, index) => {
-      if (item.status === 'IN_TRANSIT' && item.sefer != null) lastInTransitIndexBySefer.set(item.sefer, index)
+      if (item.status === 'IN_TRANSIT' && item.trip != null) lastInTransitIndexBySefer.set(item.trip, index)
     })
     return sortedHistory.filter((item, index) => {
-      if (item.status !== 'IN_TRANSIT' || item.sefer == null) return true
-      return lastInTransitIndexBySefer.get(item.sefer) === index
+      if (item.status !== 'IN_TRANSIT' || item.trip == null) return true
+      return lastInTransitIndexBySefer.get(item.trip) === index
     })
   }, [sortedHistory])
 
@@ -42,9 +42,9 @@ export function PackageHistoryTimeline({ history, branchNames, employeeNames, se
   }
 
   const historyLabel = (item: PackageHistory) => {
-    if (seferBasedStatuses.has(item.status) && item.sefer != null) return seferRouteLabel(item.sefer)
+    if (seferBasedStatuses.has(item.status) && item.trip != null) return seferRouteLabel(item.trip)
     if (item.branch != null) return `${branchNames.get(item.branch) ?? `Şube #${item.branch}`} Şubesi`
-    if (item.sefer != null) return seferRouteLabel(item.sefer)
+    if (item.trip != null) return seferRouteLabel(item.trip)
     return 'Konum bilgisi yok'
   }
 

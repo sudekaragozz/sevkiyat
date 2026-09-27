@@ -4,13 +4,11 @@ from django.db import transaction
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 
-from .exceptions import SevkiyatError
-from .models import Branch, Counter,  Package, PackageHistory, Sefer
+from .exceptions import ShipmentError
+from .models import Branch, Counter, Package, PackageHistory, Trip
 
 
-# Bir paket hangi durumdan hangi durumlara geçebilir.
-# Geçersiz geçişler tek yerden engellenir, servislere dağılmaz.
-GECERLI_GECISLER = {
+VALID_TRANSITIONS = {
     Package.Status.AT_BRANCH: {
         Package.Status.IN_TRANSIT,
         Package.Status.OUT_FOR_DELIVERY,
@@ -29,44 +27,44 @@ GECERLI_GECISLER = {
     Package.Status.DELIVERED: set(),
 }
 
+
 class PackageService:
 
-    # ---------------------------------------------------------------- yardımcı
     @staticmethod
-    def _tracking_number_uret():
+    def _generate_tracking_number():
         counter, _ = Counter.objects.select_for_update().get_or_create(name="package")
         counter.value += 1
         counter.save(update_fields=["value"])
         return f"PKG{counter.value:010d}"
 
     @staticmethod
-    def _kilitle(package_id):
+    def _lock_package(package_id):
         return get_object_or_404(
             Package.objects.select_for_update(), pk=package_id
         )
 
     @staticmethod
-    def _gecis_kontrol(package, yeni_status):
-        izinli = GECERLI_GECISLER.get(package.status, set())
-        if yeni_status not in izinli:
-            raise SevkiyatError(
+    def _check_transition(package, new_status):
+        allowed = VALID_TRANSITIONS.get(package.status, set())
+        if new_status not in allowed:
+            raise ShipmentError(
                 f"{package.tracking_number}: "
                 f"'{package.get_status_display()}' durumundan "
-                f"'{Package.Status(yeni_status).label}' durumuna geçilemez."
+                f"'{Package.Status(new_status).label}' durumuna geçilemez."
             )
 
     @staticmethod
-    def _kapasite_kontrol(sefer, eklenecek_desi):
-        kapasite = sefer.vehicle.capacity
-        yuklu = sefer.packages.aggregate(t=Sum("desi"))["t"] or Decimal("0")
-        if yuklu + eklenecek_desi > kapasite:
-            raise SevkiyatError(
-                f"Kapasite aşımı: {sefer.vehicle.plate_number} aracına "
-                f"{yuklu + eklenecek_desi} desi yüklenmek isteniyor, "
-                f"kapasite {kapasite} desi."
+    def _check_capacity(trip, extra_desi):
+        capacity = trip.vehicle.capacity
+        loaded = trip.packages.aggregate(t=Sum("desi"))["t"] or Decimal("0")
+        if loaded + extra_desi > capacity:
+            raise ShipmentError(
+                f"Kapasite aşımı: {trip.vehicle.plate_number} aracına "
+                f"{loaded + extra_desi} desi yüklenmek isteniyor, "
+                f"kapasite {capacity} desi.",
+                code="capacity_exceeded",
             )
 
-    # ------------------------------------------------------------------ kabul
 
     @staticmethod
     @transaction.atomic
@@ -81,10 +79,12 @@ class PackageService:
         payment_type,
     ):
         if origin_branch == destination_branch:
-            raise SevkiyatError("Çıkış ve varış şubesi aynı olamaz.")
+            raise ShipmentError("Çıkış ve varış şubesi aynı olamaz.")
 
         if desi <= 0:
-            raise SevkiyatError("Desi değeri sıfırdan büyük olmalı.")
+            raise ShipmentError("Desi değeri sıfırdan büyük olmalı.")
+
+        tracking_number = PackageService._generate_tracking_number()
 
         package = Package.objects.create(
             employee=employee,
@@ -96,7 +96,7 @@ class PackageService:
             recipient_phone=recipient_phone,
             payment_type=payment_type,
             status=Package.Status.AT_BRANCH,
-            tracking_number=PackageService._tracking_number_uret(),
+            tracking_number=tracking_number,
         )
 
         PackageHistory.objects.create(
@@ -108,87 +108,78 @@ class PackageService:
 
         return package
 
-    # ------------------------------------------------------------ sefere yükle
-
     @transaction.atomic
-    def sefere_cikart(*, package_id, sefer_id, employee_id):
+    def load_to_trip(*, package_id, trip_id, employee_id):
         package = get_object_or_404(Package.objects.select_for_update(), pk=package_id)
-        sefer = get_object_or_404(Sefer.objects.select_for_update(), pk=sefer_id)
+        trip = get_object_or_404(Trip.objects.select_for_update(), pk=trip_id)
 
-        if sefer.status != Sefer.Status.PLANNED:
-            raise SevkiyatError(
-                f"Sefer yüklemeye kapalı (durum: {sefer.get_status_display()}).",
+        if trip.status != Trip.Status.PLANNED:
+            raise ShipmentError(
+                f"Sefer yüklemeye kapalı (durum: {trip.get_status_display()}).",
                 code="sefer_not_loadable",
             )
 
-        if package.sefer_id is not None:
-            raise SevkiyatError("Paket zaten bir seferde.", code="already_in_transit")
+        if package.trip_id is not None:
+            raise ShipmentError("Paket zaten bir seferde.", code="already_in_transit")
 
         if package.current_branch_id is None:
-            raise SevkiyatError("Paket herhangi bir şubede değil.", code="not_at_branch")
+            raise ShipmentError("Paket herhangi bir şubede değil.", code="not_at_branch")
 
-        if package.current_branch_id != sefer.origin_branch_id:
-            raise SevkiyatError(
-                f"Paket {package.current_branch} şubesinde, sefer {sefer.origin_branch} "
+        if package.current_branch_id != trip.origin_branch_id:
+            raise ShipmentError(
+                f"Paket {package.current_branch} şubesinde, sefer {trip.origin_branch} "
                 f"şubesinden kalkıyor.",
                 code="branch_mismatch",
             )
 
-        kapasite = sefer.vehicle.capacity
-        yuklu = sefer.packages.aggregate(t=Sum("desi"))["t"] or Decimal("0")
-        if yuklu + package.desi > kapasite:
-            raise SevkiyatError(
-                f"Kapasite aşımı: {yuklu + package.desi} / {kapasite} desi.",
-                code="capacity_exceeded",
-            )
+        PackageService._check_capacity(trip, package.desi)
 
-        PackageService._gecis_kontrol(package, Package.Status.IN_TRANSIT)
+        PackageService._check_transition(package, Package.Status.IN_TRANSIT)
 
-        cikis_subesi = package.current_branch
-        package.sefer = sefer
+        departure_branch = package.current_branch
+        package.trip = trip
         package.current_branch = None
         package.status = Package.Status.IN_TRANSIT
-        package.save(update_fields=["sefer", "current_branch", "status"])
+        package.save(update_fields=["trip", "current_branch", "status"])
 
         PackageHistory.objects.bulk_create([
             PackageHistory(
-                package=package, branch=cikis_subesi, employee_id=employee_id,
+                package=package, branch=departure_branch, employee_id=employee_id,
                 status=PackageHistory.Status.LEAVE_BRANCH,
             ),
             PackageHistory(
-                package=package, sefer=sefer, employee_id=employee_id,
+                package=package, trip=trip, employee_id=employee_id,
                 status=PackageHistory.Status.IN_TRANSIT,
             ),
         ])
 
         return package
 
-    # ----------------------------------------------------------- seferden indir
 
     @staticmethod
     @transaction.atomic
-    def seferden_indir(*, package_id, branch_id, employee_id):
-        package = PackageService._kilitle(package_id)
+    def unload_from_trip(*, package_id, branch_id, employee_id):
+        package = PackageService._lock_package(package_id)
         branch = get_object_or_404(Branch, pk=branch_id)
 
-        PackageService._gecis_kontrol(package, Package.Status.AT_BRANCH)
+        PackageService._check_transition(package, Package.Status.AT_BRANCH)
 
-        if package.sefer_id is None:
-            raise SevkiyatError(
+        if package.trip_id is None:
+            raise ShipmentError(
                 f"{package.tracking_number} herhangi bir seferde değil."
             )
 
-        sefer = package.sefer
+        trip = package.trip
 
-        package.sefer = None
+        package.trip = None
         package.current_branch = branch
         package.status = Package.Status.AT_BRANCH
-        package.save(update_fields=["sefer", "current_branch", "status"])
+        package.save(update_fields=["trip", "current_branch", "status"])
 
         PackageHistory.objects.bulk_create([
             PackageHistory(
                 package=package,
-                sefer=sefer,
+                trip=trip,
                 employee_id=employee_id,
                 status=PackageHistory.Status.LEFT_TRANSIT,
             ),
@@ -202,17 +193,16 @@ class PackageService:
 
         return package
 
-    # --------------------------------------------------------- dağıtıma çıkart
 
     @staticmethod
     @transaction.atomic
-    def dagitima_cikart(*, package_id, employee_id):
-        package = PackageService._kilitle(package_id)
+    def send_out_for_delivery(*, package_id, employee_id):
+        package = PackageService._lock_package(package_id)
 
-        PackageService._gecis_kontrol(package, Package.Status.OUT_FOR_DELIVERY)
+        PackageService._check_transition(package, Package.Status.OUT_FOR_DELIVERY)
 
         if package.current_branch_id != package.destination_branch_id:
-            raise SevkiyatError(
+            raise ShipmentError(
                 f"Paket {package.current_branch} şubesinde, varış şubesi "
                 f"{package.destination_branch}. Dağıtıma çıkarılamaz."
             )
@@ -229,16 +219,15 @@ class PackageService:
 
         return package
 
-    # ---------------------------------------------------------------- teslimat
 
     @staticmethod
     @transaction.atomic
-    def teslim_et(*, package_id, employee_id):
-        package = PackageService._kilitle(package_id)
+    def deliver(*, package_id, employee_id):
+        package = PackageService._lock_package(package_id)
 
-        PackageService._gecis_kontrol(package, Package.Status.DELIVERED)
+        PackageService._check_transition(package, Package.Status.DELIVERED)
 
-        teslim_subesi = package.current_branch
+        delivery_branch = package.current_branch
 
         package.status = Package.Status.DELIVERED
         package.current_branch = None
@@ -246,7 +235,7 @@ class PackageService:
 
         PackageHistory.objects.create(
             package=package,
-            branch=teslim_subesi,
+            branch=delivery_branch,
             employee_id=employee_id,
             status=PackageHistory.Status.DELIVERED,
         )
@@ -255,10 +244,10 @@ class PackageService:
 
     @staticmethod
     @transaction.atomic
-    def teslim_edilemedi(*, package_id, employee_id):
-        package = PackageService._kilitle(package_id)
+    def mark_delivery_failed(*, package_id, employee_id):
+        package = PackageService._lock_package(package_id)
 
-        PackageService._gecis_kontrol(package, Package.Status.DELIVERY_FAILED)
+        PackageService._check_transition(package, Package.Status.DELIVERY_FAILED)
 
         package.status = Package.Status.DELIVERY_FAILED
         package.save(update_fields=["status"])

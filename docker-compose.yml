@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: sevkiyat_db
+      POSTGRES_USER: sevkiyat_user
+      POSTGRES_PASSWORD: "123456"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Exposed so a backend running outside Docker (manage.py runserver) can use this database.
+    # The local postgresql service must be stopped — both need port 5432.
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sevkiyat_user -d sevkiyat_db"]
+      interval: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    # settings.py hardcodes HOST='localhost'; sharing db's network makes that resolve to Postgres
+    network_mode: "service:db"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
