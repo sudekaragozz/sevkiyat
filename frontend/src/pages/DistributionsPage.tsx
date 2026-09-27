@@ -16,6 +16,7 @@ import { DateRangeFilter } from '../components/grid/DateRangeFilter'
 import { NumberRangeFilter } from '../components/grid/NumberRangeFilter'
 import type { RangeFilterModel } from '../components/grid/useRangeDraft'
 import { CompleteDistributionDialog } from '../components/CompleteDistributionDialog'
+import { CreateDistributionDialog } from '../components/CreateDistributionDialog'
 import { distributionStatus } from '../constants'
 import type { Distribution, DistributionFilters } from '../types'
 
@@ -139,6 +140,7 @@ export default function DistributionsPage() {
     </Box>
     {totalPages > 1 && <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}><Pagination count={totalPages} page={page} onChange={(_event: ChangeEvent<unknown>, value: number) => setPage(value)} color="primary" /></Box>}
 
+    <CreateDistributionDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreated={(distribution) => { setCreateOpen(false); navigate(`/distributions/${distribution.id}`) }} />
     <CompleteDistributionDialog distributionId={completeId} onClose={() => setCompleteId(null)} onCompleted={() => { setCompleteId(null); reload() }} />
   </Box>
 }
