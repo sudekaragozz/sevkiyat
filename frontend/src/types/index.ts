@@ -128,3 +128,46 @@ export type CargoForm = {
   desi: string
   payment_type: string
 }
+
+// Mirrors Distribution.Status / DistributionPackage.Result (shipments/models.py).
+export type DistributionStatus = 'READY_TO_GO' | 'OUT_FOR_DELIVERY' | 'COMPLETED'
+export type DistributionResult = 'PENDING' | 'DELIVERED' | 'FAILED'
+
+// Mirrors DistributionSerializer (shipments/serializers.py).
+export type Distribution = {
+  id: number
+  branch: number
+  courier: number
+  vehicle: number
+  status: DistributionStatus
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+  package_count: number
+}
+
+// Query params accepted by GET /api/distributions/. Multi-value filters are sent comma-separated;
+// dates are YYYY-MM-DD and inclusive; package_count bounds are inclusive.
+export type DistributionFilters = {
+  status?: string[]
+  branch?: number[]
+  courier?: number[]
+  vehicle?: number[]
+  started_after?: string
+  started_before?: string
+  package_count_min?: string
+  package_count_max?: string
+}
+
+export type DistributionFilterOptionField = 'branch' | 'courier' | 'vehicle' | 'status'
+
+export type PaginatedDistributions = {
+  count: number
+  total_pages: number
+  page_number: number
+  page_size: number
+  results: Distribution[]
+}
+
+// GET /api/distributions/<id>/packages/: the package plus its result in this distribution.
+export type DistributionPackage = Package & { result: DistributionResult }
