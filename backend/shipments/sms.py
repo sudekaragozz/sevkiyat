@@ -4,6 +4,12 @@ OUT_FOR_DELIVERY = "out_for_delivery"
 
 
 def notify_out_for_delivery(*, package, distribution):
+    """
+    DELETE ME
+    :param package:
+    :param distribution:
+    :return:
+    """
     return NotificationService.enqueue_sms(
         recipient=package.recipient_phone,
         message=(
