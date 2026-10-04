@@ -7,6 +7,7 @@ export const drawerWidth = 250
 // Matches PackageHistory.Status choices in shipments/models.py.
 export const historyStatus: Record<string, string> = {
   AT_BRANCH: 'Şubeye Ulaştı',
+  LOADED: 'Sefere Yüklendi',
   LEAVE_BRANCH: 'Şubeden Ayrıldı',
   IN_TRANSIT: 'Yolda',
   LEFT_TRANSIT: 'Sefer Bitti',

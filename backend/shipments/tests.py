@@ -1,10 +1,13 @@
 from decimal import Decimal
 
 from django.test import TestCase
+from notifications.models import Notification
 from rest_framework.test import APITestCase
 
 from .distribution_service import DistributionService, eligible_packages
 from .exceptions import ShipmentError
+from .package_service import PackageService
+from .trip_service import TripService
 from .models import (
     Branch,
     Distribution,
@@ -12,6 +15,7 @@ from .models import (
     Employee,
     Package,
     PackageHistory,
+    Trip,
     Vehicle,
 )
 
@@ -414,3 +418,230 @@ class DistributionApiTests(DistributionFixtures, APITestCase):
     def test_unknown_distribution_is_404(self):
         self.assertEqual(self.client.get("/api/distributions/999999/").status_code, 404)
         self.assertEqual(self.client.post("/api/distributions/999999/start/").status_code, 404)
+
+
+class TripFlowTests(DistributionFixtures, TestCase):
+
+    def setUp(self):
+        self.setup_fixtures()
+        self.trip = Trip.objects.create(
+            vehicle=self.vehicle,
+            loaded_by=self.driver,
+            origin_branch=self.origin,
+            destination_branch=self.branch,
+        )
+        self.package = self.make_package(current_branch=self.origin)
+
+    def load(self):
+        PackageService.load_to_trip(
+            package_id=self.package.id, trip_id=self.trip.id, employee_id=self.driver.id,
+        )
+        self.package.refresh_from_db()
+
+    def test_new_trip_has_no_start_or_completion_date(self):
+        self.assertIsNone(self.trip.started_at)
+        self.assertIsNone(self.trip.completed_at)
+
+    def test_load_marks_package_loaded_and_keeps_branch(self):
+        self.load()
+
+        self.assertEqual(self.package.status, Package.Status.LOADED)
+        self.assertEqual(self.package.trip_id, self.trip.id)
+        self.assertEqual(self.package.current_branch_id, self.origin.id)
+        history = PackageHistory.objects.get(package=self.package)
+        self.assertEqual(history.status, PackageHistory.Status.LOADED)
+        self.assertEqual(history.trip_id, self.trip.id)
+        self.assertEqual(history.branch_id, self.origin.id)
+
+    def test_start_trip_moves_loaded_packages_in_transit(self):
+        self.load()
+
+        TripService.start_trip(trip_id=self.trip.id)
+
+        self.package.refresh_from_db()
+        self.trip.refresh_from_db()
+        self.assertIsNotNone(self.trip.started_at)
+        self.assertIsNone(self.trip.completed_at)
+        self.assertEqual(self.package.status, Package.Status.IN_TRANSIT)
+        self.assertIsNone(self.package.current_branch_id)
+        statuses = list(
+            PackageHistory.objects.filter(package=self.package).order_by("created_at", "id").values_list("status", flat=True)
+        )
+        self.assertEqual(statuses, [
+            PackageHistory.Status.LOADED,
+            PackageHistory.Status.LEAVE_BRANCH,
+            PackageHistory.Status.IN_TRANSIT,
+        ])
+
+    def test_arrive_trip_puts_package_at_destination(self):
+        self.load()
+        TripService.start_trip(trip_id=self.trip.id)
+
+        TripService.arrive_trip(trip_id=self.trip.id)
+
+        self.package.refresh_from_db()
+        self.trip.refresh_from_db()
+        self.assertIsNotNone(self.trip.completed_at)
+        self.assertGreaterEqual(self.trip.completed_at, self.trip.started_at)
+        self.assertEqual(self.package.status, Package.Status.AT_BRANCH)
+        self.assertEqual(self.package.current_branch_id, self.branch.id)
+        self.assertIsNone(self.package.trip_id)
+
+    def test_arrive_trip_rejects_package_not_in_transit(self):
+        self.load()
+        TripService.start_trip(trip_id=self.trip.id)
+        Package.objects.filter(pk=self.package.pk).update(status=Package.Status.LOADED)
+
+        with self.assertRaises(ShipmentError):
+            TripService.arrive_trip(trip_id=self.trip.id)
+
+        self.trip.refresh_from_db()
+        self.package.refresh_from_db()
+        self.assertEqual(self.trip.status, Trip.Status.IN_TRANSIT)
+        self.assertEqual(self.package.status, Package.Status.LOADED)
+        self.assertEqual(self.package.trip_id, self.trip.id)
+
+
+class TripApiTests(DistributionFixtures, APITestCase):
+
+    def setUp(self):
+        self.setup_fixtures()
+        self.trip = Trip.objects.create(
+            vehicle=self.vehicle,
+            loaded_by=self.driver,
+            origin_branch=self.origin,
+            destination_branch=self.branch,
+        )
+
+    def test_start_twice_is_400_with_detail(self):
+        self.assertEqual(self.client.post(f"/api/trips/{self.trip.id}/start/").status_code, 200)
+
+        response = self.client.post(f"/api/trips/{self.trip.id}/start/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["detail"], "Sadece planlanmış sefer yola çıkarılabilir.")
+
+    def test_arrive_on_planned_trip_is_400(self):
+        response = self.client.post(f"/api/trips/{self.trip.id}/arrive/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["detail"], "Sadece yolda olan sefer varış yapabilir.")
+
+    def test_unknown_trip_action_is_404(self):
+        self.assertEqual(self.client.post("/api/trips/999999/start/").status_code, 404)
+
+
+class PackageCreatePhoneTests(DistributionFixtures, APITestCase):
+
+    def setUp(self):
+        self.setup_fixtures()
+
+    def payload(self, phone):
+        return {
+            "employee": self.driver.id,
+            "origin_branch": self.origin.id,
+            "destination_branch": self.branch.id,
+            "recipient_name": "Alıcı",
+            "recipient_phone": phone,
+            "desi": "2",
+            "payment_type": "Alıcı Ödemeli",
+        }
+
+    def test_create_stores_normalized_phone(self):
+        response = self.client.post("/api/packages/", self.payload("0532 123 45 67"), format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["recipient_phone"], "+905321234567")
+        self.assertEqual(Package.objects.get(pk=response.data["id"]).recipient_phone, "+905321234567")
+
+    def test_create_rejects_invalid_phone(self):
+        response = self.client.post("/api/packages/", self.payload("1234567890"), format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("recipient_phone", response.data)
+        self.assertFalse(Package.objects.exists())
+
+    def test_existing_packages_with_invalid_phone_are_untouched(self):
+        package = self.make_package()
+        package.recipient_phone = "1234567890"
+        package.save(update_fields=["recipient_phone"])
+
+        response = self.client.get("/api/packages/?page_number=1&page_size=10")
+
+        self.assertEqual(response.status_code, 200)
+        package.refresh_from_db()
+        self.assertEqual(package.recipient_phone, "1234567890")
+
+
+class NotificationEnqueueTests(DistributionFixtures, TestCase):
+
+    def setUp(self):
+        self.setup_fixtures()
+
+    def test_start_enqueues_sms_for_each_package(self):
+        first, second = self.make_package(), self.make_package()
+        distribution = self.create_distribution([first, second])
+
+        DistributionService.start(distribution_id=distribution.id)
+
+        notifications = Notification.objects.filter(metadata__distribution_id=distribution.id).order_by("target_object_id")
+        self.assertEqual([n.target for n in notifications], [first, second])
+        notification = notifications[0]
+        self.assertEqual(notification.status, Notification.Status.PENDING)
+        self.assertEqual(notification.event, "out_for_delivery")
+        self.assertEqual(notification.dedup_key, f"out_for_delivery:distribution-{distribution.id}:package-{first.id}")
+        self.assertEqual(notification.recipient, "+905550000000")
+        self.assertIn(first.tracking_number, notification.message)
+        self.assertIn(self.branch.name, notification.message)
+
+    def test_invalid_phone_is_recorded_as_failed(self):
+        package = self.make_package()
+        Package.objects.filter(pk=package.pk).update(recipient_phone="1234567890")
+        distribution = self.create_distribution([package])
+
+        DistributionService.start(distribution_id=distribution.id)
+
+        notification = Notification.objects.get(target_object_id=package.id)
+        self.assertEqual(notification.status, Notification.Status.FAILED)
+        self.assertEqual(notification.last_error, "Geçersiz telefon numarası.")
+
+    def test_rolled_back_start_creates_no_notification(self):
+        first, second = self.make_package(), self.make_package()
+        distribution = self.create_distribution([first, second])
+        Package.objects.filter(pk=second.pk).update(status=Package.Status.IN_TRANSIT, current_branch=None)
+
+        with self.assertRaises(ShipmentError):
+            DistributionService.start(distribution_id=distribution.id)
+
+        self.assertFalse(Notification.objects.exists())
+
+
+class NotificationApiTests(DistributionFixtures, APITestCase):
+
+    def setUp(self):
+        self.setup_fixtures()
+
+    def test_lists_notifications_for_package(self):
+        package = self.make_package()
+        distribution = self.create_distribution([package])
+        DistributionService.start(distribution_id=distribution.id)
+
+        response = self.client.get(f"/api/notifications/?package={package.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["status"], "PENDING")
+
+    def test_requires_a_filter(self):
+        self.assertEqual(self.client.get("/api/notifications/").status_code, 400)
+
+    def test_lists_notifications_for_distribution(self):
+        package = self.make_package()
+        distribution = self.create_distribution([package])
+        DistributionService.start(distribution_id=distribution.id)
+
+        response = self.client.get(f"/api/notifications/?distribution={distribution.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item["package"] for item in response.data], [package.id])
+        self.assertEqual(response.data[0]["distribution"], distribution.id)

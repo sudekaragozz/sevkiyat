@@ -6,6 +6,7 @@ import { fetchDistribution, fetchDistributionPackages, setPackageResult, startDi
 import { CompleteDistributionDialog } from '../components/CompleteDistributionDialog'
 import { useReferenceData } from '../context/ReferenceDataContext'
 import { distributionResult, distributionStatus } from '../constants'
+import { formatTrMobile } from '../phone'
 import type { Distribution, DistributionPackage } from '../types'
 
 const resultColor: Record<string, 'default' | 'success' | 'error'> = { PENDING: 'default', DELIVERED: 'success', FAILED: 'error' }
@@ -116,7 +117,7 @@ export default function DistributionDetailPage() {
             return <TableRow key={item.id}>
               <TableCell>{item.tracking_number}</TableCell>
               <TableCell>{item.recipient_name}</TableCell>
-              <TableCell>{item.recipient_phone}</TableCell>
+              <TableCell>{formatTrMobile(item.recipient_phone)}</TableCell>
               <TableCell align="right">{item.desi}</TableCell>
               <TableCell><Chip size="small" label={distributionResult[item.result] ?? item.result} color={resultColor[item.result] ?? 'default'} /></TableCell>
               <TableCell align="right">

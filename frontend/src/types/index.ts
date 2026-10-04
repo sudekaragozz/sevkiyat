@@ -13,6 +13,8 @@ export type Sefer = {
   previous_sefer: number | null
   status: string
   loading_date: string
+  started_at: string | null
+  completed_at: string | null
   package_count: number
 }
 
@@ -26,6 +28,10 @@ export type SeferFilters = {
   destination_branch?: number[]
   loading_after?: string
   loading_before?: string
+  started_after?: string
+  started_before?: string
+  completed_after?: string
+  completed_before?: string
   package_count_min?: string
   package_count_max?: string
 }
@@ -72,10 +78,11 @@ export type Package = {
 }
 
 // Mirrors Package.Status (shipments/models.py).
-export type PackageStatus = 'AT_BRANCH' | 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'DELIVERY_FAILED'
+export type PackageStatus = 'AT_BRANCH' | 'LOADED' | 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'DELIVERY_FAILED'
 
 export const PACKAGE_STATUS_LABELS: Record<PackageStatus, string> = {
   AT_BRANCH: 'Şubede',
+  LOADED: 'Sefere Yüklendi',
   IN_TRANSIT: 'Yolda',
   OUT_FOR_DELIVERY: 'Dağıtımda',
   DELIVERED: 'Teslim Edildi',

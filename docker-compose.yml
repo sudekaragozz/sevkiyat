@@ -26,6 +26,16 @@ services:
       db:
         condition: service_healthy
 
+  notifier:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: python manage.py send_notifications
+    network_mode: "service:db"
+    depends_on:
+      backend:
+        condition: service_started
+
   frontend:
     build:
       context: .

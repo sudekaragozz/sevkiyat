@@ -1,4 +1,7 @@
 from rest_framework import serializers
+from notifications.models import Notification
+from notifications.phone import normalize_tr_mobile
+
 from .models import Branch, Distribution, DistributionPackage, Employee, Package, PackageHistory, Trip, Vehicle
 
 
@@ -53,6 +56,14 @@ class PackageSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['tracking_number','status']
 
+    def validate_recipient_phone(self, value):
+        phone = normalize_tr_mobile(value)
+        if phone is None:
+            raise serializers.ValidationError(
+                "Geçerli bir cep telefonu numarası girin (ör. 0532 123 45 67)."
+            )
+        return phone
+
 
 class VehicleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -74,9 +85,11 @@ class TripSerializer(serializers.ModelSerializer):
             'destination_branch',
             'status',
             'loading_date',
+            'started_at',
+            'completed_at',
             'package_count',
         ]
-        read_only_fields = ['loading_date']
+        read_only_fields = ['loading_date', 'started_at', 'completed_at']
 
 
 class DistributionSerializer(serializers.ModelSerializer):
@@ -113,3 +126,28 @@ class DistributionPackageSerializer(serializers.BaseSerializer):
         data = PackageSerializer(instance.package).data
         data['result'] = instance.result
         return data
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    package = serializers.IntegerField(source='target_object_id', read_only=True)
+    distribution = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Notification
+        fields = [
+            'id',
+            'package',
+            'distribution',
+            'channel',
+            'event',
+            'recipient',
+            'message',
+            'status',
+            'attempts',
+            'last_error',
+            'created_at',
+            'sent_at',
+        ]
+
+    def get_distribution(self, obj):
+        return obj.metadata.get('distribution_id')

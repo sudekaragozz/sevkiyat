@@ -25,6 +25,7 @@ export function PackageAccordionList({ packages, branchNames, employeeNames, sef
   }
 
   const packageStatusLabel = (pkg: Package) => {
+    if (pkg.status === 'LOADED') return 'Sefere Yüklendi'
     if (pkg.trip != null) return 'Yolda'
     if (pkg.current_branch != null) return nameOf(branchNames, pkg.current_branch)
     return 'Teslim Edildi'

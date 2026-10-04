@@ -24,6 +24,7 @@ class Branch(models.Model):
 class Package(models.Model):
     class Status(models.TextChoices):
         AT_BRANCH = "AT_BRANCH", "Şubede"
+        LOADED = "LOADED", "Sefere Yüklendi"
         IN_TRANSIT = "IN_TRANSIT", "Yolda"
         OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "Dağıtımda"
         DELIVERED = "DELIVERED", "Teslim Edildi"
@@ -131,14 +132,11 @@ class Trip(models.Model):
     )
 
     loading_date = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.origin_branch} → {self.destination_branch}"
-
-    def can_load_packages(self):
-        if self.status != Trip.Status.PLANNED:
-            return False
-        return True
 
 
 class Distribution(models.Model):
@@ -216,11 +214,11 @@ class DistributionPackage(models.Model):
             ),
         ]
 
-
 class PackageHistory(models.Model):
 
     class Status(models.TextChoices):
         AT_BRANCH = "AT_BRANCH", "Şubeye Ulaştı"  # branch id dolu
+        LOADED = "LOADED", "Sefere Yüklendi"
         LEAVE_BRANCH = "LEAVE_BRANCH", "Şubeden Ayrıldı."  # branch id dolu
         IN_TRANSIT = "IN_TRANSIT", "Yolda"  # trip id dolu
         LEFT_TRANSIT = "LEFT_TRANSIT", "Sefer bitti"  # trip id dolu

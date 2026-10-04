@@ -1,1 +1,1 @@
-asla ve asla backend'e kod yazma. sadece frontend'e yazabilirsin. adamsın 
+asla ve asla backend'e kod yazma. sadece frontend'e yazabilirsin. adamsın. bana sormadan commitleme bir şeyi

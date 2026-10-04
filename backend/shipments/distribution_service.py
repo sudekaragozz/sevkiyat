@@ -8,6 +8,7 @@ from django.utils import timezone
 from .exceptions import ShipmentError
 from .models import Branch, Distribution, DistributionPackage, Employee, Package, Vehicle
 from .package_service import PackageService
+from .sms import notify_out_for_delivery
 
 
 def eligible_packages(branch_id):
@@ -97,11 +98,15 @@ class DistributionService:
         # send_out_for_delivery geçiş kuralını ve paketin varış şubesinde olduğunu kontrol eder;
         # herhangi bir paket uygun değilse hata tüm işlemi geri alır.
         for item in distribution.items.order_by("package_id"):
-            PackageService.send_out_for_delivery(
+            package = PackageService.send_out_for_delivery(
                 package_id=item.package_id,
                 employee_id=distribution.courier_id,
                 distribution=distribution,
             )
+            # neden bu transactionda smsi göndermiyorum da, sadece notification tablosuna kayıt atıyorum. göndersem nolur, göndermiyorum; neyi doğru yapıyorum. neden
+            # transactional outbox patterniyle bunun bir alakası var mı, transactional outbox ne işe yarar. genel bi bak...
+
+            notify_out_for_delivery(package=package, distribution=distribution)
 
         distribution.status = Distribution.Status.OUT_FOR_DELIVERY
         distribution.started_at = timezone.now()

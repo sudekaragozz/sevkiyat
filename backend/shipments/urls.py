@@ -4,6 +4,7 @@ from .views import (
     BranchViewset,
     EmployeeViewset,
     EmployeePackagesView,
+    NotificationListView,
     PackageFilterOptionsView,
     PackageHistoryView,
     PackageViewset,
@@ -57,4 +58,5 @@ urlpatterns = [
         name='package-load-to-trip',
     ),
     path('package-history/', PackageHistoryView.as_view(), name='package-history'),
+    path('notifications/', NotificationListView.as_view(), name='notification-list'),
 ]

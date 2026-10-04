@@ -22,6 +22,8 @@ import type { Sefer, SeferFilters } from '../types'
 
 const gridModules = [ClientSideRowModelModule]
 
+const formatDate = (value: string | null) => value ? new Date(value).toLocaleString('tr-TR') : '-'
+
 // Filtre seçenekleri backend'den gelir: yalnızca seferlerde gerçekten kullanılan değerler.
 const loadVehicleOptions = () => fetchTripFilterOptions<number>('vehicle')
 const loadDriverOptions = () => fetchTripFilterOptions<number>('loaded_by')
@@ -41,6 +43,10 @@ function toSeferFilters(model: Record<string, unknown>): SeferFilters {
     destination_branch: values<number>('destination_branch'),
     loading_after: range('loading_date').from,
     loading_before: range('loading_date').to,
+    started_after: range('started_at').from,
+    started_before: range('started_at').to,
+    completed_after: range('completed_at').from,
+    completed_before: range('completed_at').to,
     package_count_min: range('package_count').from,
     package_count_max: range('package_count').to,
   }
@@ -109,7 +115,9 @@ export default function SefersPage() {
     { field: 'status', headerName: 'Durum', valueFormatter: ({ value }) => seferStatus[value] ?? value, filter: MultiSelectFilter, filterParams: { loadOptions: loadStatusOptions } },
     { field: 'vehicle', headerName: 'Araç', valueFormatter: ({ value }) => nameOf(vehiclePlates, value), filter: MultiSelectFilter, filterParams: { loadOptions: loadVehicleOptions } },
     { field: 'loaded_by', headerName: 'Şoför', valueFormatter: ({ value }) => nameOf(employeeNames, value), filter: MultiSelectFilter, filterParams: { loadOptions: loadDriverOptions } },
-    { field: 'loading_date', headerName: 'Yükleme Tarihi', minWidth: 170, valueFormatter: ({ value }) => value ? new Date(value).toLocaleString('tr-TR') : '-', filter: DateRangeFilter },
+    { field: 'loading_date', headerName: 'Oluşturulma Tarihi', minWidth: 170, valueFormatter: ({ value }) => formatDate(value), filter: DateRangeFilter },
+    { field: 'started_at', headerName: 'Yola Çıkış', minWidth: 170, valueFormatter: ({ value }) => formatDate(value), filter: DateRangeFilter },
+    { field: 'completed_at', headerName: 'Varış', minWidth: 170, valueFormatter: ({ value }) => formatDate(value), filter: DateRangeFilter },
     { field: 'package_count', headerName: 'Paket Sayısı', width: 140, minWidth: 140, flex: 0, valueFormatter: ({ value }) => `${value} paket`, filter: NumberRangeFilter },
     {
       headerName: '', width: 280, minWidth: 280, flex: 0, sortable: false, filter: false, resizable: false,

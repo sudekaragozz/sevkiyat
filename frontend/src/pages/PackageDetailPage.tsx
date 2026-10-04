@@ -8,6 +8,7 @@ import { historyStatus } from '../constants'
 import type { Package, PackageHistory } from '../types'
 import { nameOf } from '../api/utils'
 import { PackageHistoryTimeline } from '../components/PackageHistoryTimeline'
+import { formatTrMobile } from '../phone'
 
 export default function PackageDetailPage() {
   const { id } = useParams()
@@ -67,7 +68,7 @@ export default function PackageDetailPage() {
         <Box><Typography color="text.secondary">Varış şubesi</Typography><Typography fontWeight={700}>{nameOf(branchNames, pkg.destination_branch)}</Typography></Box>
         <Box><Typography color="text.secondary">Desi</Typography><Typography fontWeight={700}>{pkg.desi}</Typography></Box>
         <Box><Typography color="text.secondary">Alıcı adı</Typography><Typography fontWeight={700}>{pkg.recipient_name}</Typography></Box>
-        <Box><Typography color="text.secondary">Alıcı telefonu</Typography><Typography fontWeight={700}>{pkg.recipient_phone}</Typography></Box>
+        <Box><Typography color="text.secondary">Alıcı telefonu</Typography><Typography fontWeight={700}>{formatTrMobile(pkg.recipient_phone)}</Typography></Box>
         <Box><Typography color="text.secondary">Ödeme tipi</Typography><Typography fontWeight={700}>{pkg.payment_type}</Typography></Box>
         <Box><Typography color="text.secondary">Mevcut durum</Typography><Typography fontWeight={700}>{latestStatus ? historyStatus[latestStatus] ?? latestStatus : '-'}</Typography></Box>
       </Box>

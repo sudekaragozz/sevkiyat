@@ -5,13 +5,16 @@ from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 
 from .exceptions import ShipmentError
-from .models import Branch, Counter, Package, PackageHistory, Trip
+from .models import Counter, Package, PackageHistory, Trip
 
 
 VALID_TRANSITIONS = {
     Package.Status.AT_BRANCH: {
-        Package.Status.IN_TRANSIT,
+        Package.Status.LOADED,
         Package.Status.OUT_FOR_DELIVERY,
+    },
+    Package.Status.LOADED: {
+        Package.Status.IN_TRANSIT,
     },
     Package.Status.IN_TRANSIT: {
         Package.Status.AT_BRANCH,
@@ -108,9 +111,10 @@ class PackageService:
 
         return package
 
+    @staticmethod
     @transaction.atomic
     def load_to_trip(*, package_id, trip_id, employee_id):
-        package = get_object_or_404(Package.objects.select_for_update(), pk=package_id)
+        package = PackageService._lock_package(package_id)
         trip = get_object_or_404(Trip.objects.select_for_update(), pk=trip_id)
 
         if trip.status != Trip.Status.PLANNED:
@@ -134,62 +138,16 @@ class PackageService:
 
         PackageService._check_capacity(trip, package.desi)
 
-        PackageService._check_transition(package, Package.Status.IN_TRANSIT)
+        PackageService._check_transition(package, Package.Status.LOADED)
 
-        departure_branch = package.current_branch
         package.trip = trip
-        package.current_branch = None
-        package.status = Package.Status.IN_TRANSIT
-        package.save(update_fields=["trip", "current_branch", "status"])
+        package.status = Package.Status.LOADED
+        package.save(update_fields=["trip", "status"])
 
-        PackageHistory.objects.bulk_create([
-            PackageHistory(
-                package=package, branch=departure_branch, employee_id=employee_id,
-                status=PackageHistory.Status.LEAVE_BRANCH,
-            ),
-            PackageHistory(
-                package=package, trip=trip, employee_id=employee_id,
-                status=PackageHistory.Status.IN_TRANSIT,
-            ),
-        ])
-
-        return package
-
-
-    @staticmethod
-    @transaction.atomic
-    def unload_from_trip(*, package_id, branch_id, employee_id):
-        package = PackageService._lock_package(package_id)
-        branch = get_object_or_404(Branch, pk=branch_id)
-
-        PackageService._check_transition(package, Package.Status.AT_BRANCH)
-
-        if package.trip_id is None:
-            raise ShipmentError(
-                f"{package.tracking_number} herhangi bir seferde değil."
-            )
-
-        trip = package.trip
-
-        package.trip = None
-        package.current_branch = branch
-        package.status = Package.Status.AT_BRANCH
-        package.save(update_fields=["trip", "current_branch", "status"])
-
-        PackageHistory.objects.bulk_create([
-            PackageHistory(
-                package=package,
-                trip=trip,
-                employee_id=employee_id,
-                status=PackageHistory.Status.LEFT_TRANSIT,
-            ),
-            PackageHistory(
-                package=package,
-                branch=branch,
-                employee_id=employee_id,
-                status=PackageHistory.Status.AT_BRANCH,
-            ),
-        ])
+        PackageHistory.objects.create(
+            package=package, branch=package.current_branch, trip=trip,
+            employee_id=employee_id, status=PackageHistory.Status.LOADED,
+        )
 
         return package
 

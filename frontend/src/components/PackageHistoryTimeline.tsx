@@ -20,21 +20,6 @@ export function PackageHistoryTimeline({ history, branchNames, employeeNames, se
     [history]
   )
 
-  // Bir paket sefere yüklenirken (load_to_trip) ve sefer gerçekten yola çıkınca (start_trip)
-  // aynı sefer için ayrı ayrı birer IN_TRANSIT kaydı oluşuyor; ilki henüz araç kalkmadan, salt
-  // yükleme anında düşüyor ve kullanıcıya "yolda" demek yanıltıcı. Aynı sefer için sadece en son
-  // (gerçek kalkış) IN_TRANSIT kaydını gösteriyoruz.
-  const displayHistory = useMemo(() => {
-    const lastInTransitIndexBySefer = new Map<number, number>()
-    sortedHistory.forEach((item, index) => {
-      if (item.status === 'IN_TRANSIT' && item.trip != null) lastInTransitIndexBySefer.set(item.trip, index)
-    })
-    return sortedHistory.filter((item, index) => {
-      if (item.status !== 'IN_TRANSIT' || item.trip == null) return true
-      return lastInTransitIndexBySefer.get(item.trip) === index
-    })
-  }, [sortedHistory])
-
   const seferRouteLabel = (seferId: number) => {
     const sefer = seferById.get(seferId)
     if (!sefer) return `Sefer #${seferId}`
@@ -48,11 +33,11 @@ export function PackageHistoryTimeline({ history, branchNames, employeeNames, se
     return 'Konum bilgisi yok'
   }
 
-  if (displayHistory.length === 0) return <Typography color="text.secondary">Henüz hareket kaydı yok.</Typography>
+  if (sortedHistory.length === 0) return <Typography color="text.secondary">Henüz hareket kaydı yok.</Typography>
 
   return <Box sx={{ ml: 1, borderLeft: '2px solid #c7d7ee' }}>
-    {displayHistory.map((item, index) => <Box key={item.id} sx={{ position: 'relative', pl: 3, pb: index === displayHistory.length - 1 ? 0 : 3 }}>
-      <Box sx={{ position: 'absolute', left: -7, top: 2, width: 12, height: 12, borderRadius: '50%', backgroundColor: index === displayHistory.length - 1 ? 'primary.main' : '#90a8c8', border: '2px solid white' }} />
+    {sortedHistory.map((item, index) => <Box key={item.id} sx={{ position: 'relative', pl: 3, pb: index === sortedHistory.length - 1 ? 0 : 3 }}>
+      <Box sx={{ position: 'absolute', left: -7, top: 2, width: 12, height: 12, borderRadius: '50%', backgroundColor: index === sortedHistory.length - 1 ? 'primary.main' : '#90a8c8', border: '2px solid white' }} />
       <Typography fontWeight={700}>{historyLabel(item)}</Typography>
       <Typography variant="body2">{index === 0 ? 'Kargo Oluşturuldu' : historyStatus[item.status] ?? item.status}</Typography>
       <Typography variant="body2" color="text.secondary">{formatDate(item.created_at)}{item.employee != null && ` · Çalışan: ${nameOf(employeeNames, item.employee)}`}</Typography>

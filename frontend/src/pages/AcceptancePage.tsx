@@ -5,6 +5,7 @@ import { useReferenceData } from '../context/ReferenceDataContext'
 import { apiError, nameOf } from '../api/utils'
 import { fetchPackageHistory } from '../api/packages'
 import { historyStatus, initialForm, seferStatus } from '../constants'
+import { formatTrMobile, invalidPhoneMessage, normalizeTrMobile } from '../phone'
 import type { CargoForm, Package, PackageHistory } from '../types'
 
 export default function AcceptancePage() {
@@ -14,22 +15,37 @@ export default function AcceptancePage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [createdPackage, setCreatedPackage] = useState<Package | null>(null)
   const [createdHistory, setCreatedHistory] = useState<PackageHistory[]>([])
+  const [phoneTouched, setPhoneTouched] = useState(false)
+  const [phoneServerError, setPhoneServerError] = useState<string | null>(null)
 
   const disabled = referenceLoading || Boolean(referenceError)
   const update = (field: keyof CargoForm, value: string) => setForm((current) => ({ ...current, [field]: value }))
+  const phoneError = phoneServerError ?? (phoneTouched && normalizeTrMobile(form.recipient_phone) == null ? invalidPhoneMessage : null)
+  const changePhone = (value: string) => { update('recipient_phone', value); setPhoneServerError(null) }
+  const blurPhone = () => { setPhoneTouched(true); if (normalizeTrMobile(form.recipient_phone)) update('recipient_phone', formatTrMobile(form.recipient_phone)) }
   const updateReference = (field: 'employee' | 'origin_branch' | 'destination_branch', value: string) => setForm((current) => ({ ...current, [field]: Number(value) }))
 
   const submitCargo = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setSubmitting(true); setSubmitError(null); setCreatedPackage(null); setCreatedHistory([])
     if (form.employee === '' || form.origin_branch === '' || form.destination_branch === '') { setSubmitError('Çalışan, çıkış şubesi ve varış şubesi seçilmelidir.'); setSubmitting(false); return }
-    const payload = { employee: Number(form.employee), origin_branch: Number(form.origin_branch), destination_branch: Number(form.destination_branch), recipient_name: form.recipient_name, recipient_phone: form.recipient_phone, desi: form.desi, payment_type: form.payment_type }
+    const recipientPhone = normalizeTrMobile(form.recipient_phone)
+    if (recipientPhone == null) { setPhoneTouched(true); setSubmitting(false); return }
+    const payload = { employee: Number(form.employee), origin_branch: Number(form.origin_branch), destination_branch: Number(form.destination_branch), recipient_name: form.recipient_name, recipient_phone: recipientPhone, desi: form.desi, payment_type: form.payment_type }
     try {
       const response = await fetch('/api/packages/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      const data = await response.json().catch(() => null) as Package & Record<string, unknown> | null
-      if (!response.ok) throw new Error(apiError(data, `Sunucu yanıtı: ${response.status}`))
-      const created = data as Package
+      const data = await response.json().catch(() => null) as Record<string, unknown> | null
+      if (!response.ok) {
+        const { recipient_phone: phoneErrors, ...otherErrors } = data ?? {}
+        if (Array.isArray(phoneErrors)) {
+          setPhoneServerError(phoneErrors.join(' '))
+          if (Object.keys(otherErrors).length === 0) return
+        }
+        throw new Error(apiError(otherErrors, `Sunucu yanıtı: ${response.status}`))
+      }
+      const created = data as unknown as Package
       setCreatedPackage(created)
       setForm(initialForm)
+      setPhoneTouched(false)
       fetchPackageHistory(created.id).then(setCreatedHistory).catch(() => setCreatedHistory([]))
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Kargo kabul işlemi tamamlanamadı.')
@@ -45,7 +61,7 @@ export default function AcceptancePage() {
     <Box component="form" onSubmit={submitCargo} className="cargo-form">
       <ReferenceSelect id="employee" label="Çalışan" placeholder="Çalışan seçin" value={form.employee} options={couriers} disabled={disabled} onChange={(id) => updateReference('employee', String(id))} />
       <TextField label="Alıcı adı" value={form.recipient_name} onChange={(e) => update('recipient_name', e.target.value)} required fullWidth />
-      <TextField label="Alıcı telefonu" value={form.recipient_phone} onChange={(e) => update('recipient_phone', e.target.value)} required fullWidth />
+      <TextField label="Alıcı telefonu" type="tel" placeholder="0532 123 45 67" value={form.recipient_phone} onChange={(e) => changePhone(e.target.value)} onBlur={blurPhone} error={Boolean(phoneError)} helperText={phoneError ?? ' '} required fullWidth inputProps={{ inputMode: 'tel', autoComplete: 'tel' }} />
       <ReferenceSelect id="origin-branch" label="Çıkış şubesi" placeholder="Çıkış şubesi seçin" value={form.origin_branch} options={branches} disabled={disabled} onChange={(id) => updateReference('origin_branch', String(id))} />
       <ReferenceSelect id="destination-branch" label="Varış şubesi" placeholder="Varış şubesi seçin" value={form.destination_branch} options={branches} disabled={disabled} onChange={(id) => updateReference('destination_branch', String(id))} />
       <TextField label="Desi" type="number" value={form.desi} onChange={(e) => update('desi', e.target.value)} required fullWidth inputProps={{ min: .01, step: .01 }} />

@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
 from django.db.models import Count, Max, Min
 from django.utils.dateparse import parse_date
@@ -6,6 +7,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from notifications.models import Notification
+
 from .exceptions import ShipmentError
 from .models import Branch, Employee, Package, PackageHistory, Trip, Vehicle
 from .package_service import PackageService
@@ -13,6 +16,7 @@ from .trip_service import TripService
 from .serializers import (
     BranchSerializer,
     EmployeeSerializer,
+    NotificationSerializer,
     PackageHistorySerializer,
     PackageSerializer,
     TripSerializer,
@@ -358,6 +362,10 @@ class TripViewset(APIView):
     DATE_FILTER_FIELDS = {
         'loading_after': 'loading_date__date__gte',
         'loading_before': 'loading_date__date__lte',
+        'started_after': 'started_at__date__gte',
+        'started_before': 'started_at__date__lte',
+        'completed_after': 'completed_at__date__gte',
+        'completed_before': 'completed_at__date__lte',
     }
 
     INT_FILTER_FIELDS = {
@@ -385,17 +393,17 @@ class TripViewset(APIView):
                 status=status.HTTP_201_CREATED
             )
 
-        if action == 'start':
-            TripService.start_trip(trip_id=pk)
-            trip = get_object_or_404(trip_queryset(), pk=pk)
-            return Response(TripSerializer(trip).data)
+        actions = {'start': TripService.start_trip, 'arrive': TripService.arrive_trip}
+        if action not in actions:
+            return Response({"detail": "Unknown action."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if action == 'arrive':
-            TripService.arrive_trip(trip_id=pk)
-            trip = get_object_or_404(trip_queryset(), pk=pk)
-            return Response(TripSerializer(trip).data)
+        try:
+            actions[action](trip_id=pk)
+        except ShipmentError as error:
+            return Response({"detail": error.message}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"detail": "Unknown action."}, status=status.HTTP_400_BAD_REQUEST)
+        trip = get_object_or_404(trip_queryset(), pk=pk)
+        return Response(TripSerializer(trip).data)
 
     def put(self, request, pk):
         return self._update(request, pk, partial=False)
@@ -519,3 +527,32 @@ class EmployeePackagesView(APIView):
         packages = Package.objects.filter(id__in=package_ids)
 
         return Response(PackageSerializer(packages, many=True).data)
+
+
+class NotificationListView(APIView):
+
+    def get(self, request):
+        package_id = request.query_params.get('package')
+        distribution_id = request.query_params.get('distribution')
+
+        if package_id is None and distribution_id is None:
+            return Response(
+                {"detail": "package or distribution is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        queryset = Notification.objects.filter(
+            target_content_type=ContentType.objects.get_for_model(Package),
+        )
+        try:
+            if package_id is not None:
+                queryset = queryset.filter(target_object_id=int(package_id))
+            if distribution_id is not None:
+                queryset = queryset.filter(metadata__distribution_id=int(distribution_id))
+        except ValueError:
+            return Response(
+                {"detail": "package and distribution must be integers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(NotificationSerializer(queryset.order_by('-created_at', '-id'), many=True).data)

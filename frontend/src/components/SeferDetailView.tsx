@@ -7,6 +7,8 @@ import type { Package, Reference, Sefer, Vehicle } from '../types'
 import { PackageAccordionList } from './PackageAccordionList'
 import { ReferenceSelect } from './ReferenceSelect'
 
+const formatDate = (value: string | null) => value ? new Date(value).toLocaleString('tr-TR') : '-'
+
 const activeSeferStatuses = new Set(['PLANNED', 'IN_TRANSIT'])
 
 export function SeferDetailView({ sefer, vehicles, employees, branchNames, employeeNames, seferById, onBack, onPackagesChanged }: { sefer: Sefer; vehicles: Vehicle[]; employees: Reference[]; branchNames: Map<number, string>; employeeNames: Map<number, string>; seferById: Map<number, Sefer>; onBack: () => void; onPackagesChanged: () => void }) {
@@ -81,6 +83,9 @@ export function SeferDetailView({ sefer, vehicles, employees, branchNames, emplo
       <Box><Typography color="text.secondary">Araç</Typography><Typography fontWeight={700}>{vehicles.find((item) => item.id === sefer.vehicle)?.plate_number ?? `Araç #${sefer.vehicle}`}</Typography></Box>
       <Box><Typography color="text.secondary">Çalışan</Typography><Typography fontWeight={700}>{employeeNames.get(sefer.loaded_by) ?? `Çalışan #${sefer.loaded_by}`}</Typography></Box>
       <Box><Typography color="text.secondary">Sefer durumu</Typography><Typography fontWeight={700}>{seferStatus[sefer.status] ?? sefer.status}</Typography></Box>
+      <Box><Typography color="text.secondary">Oluşturulma</Typography><Typography fontWeight={700}>{formatDate(sefer.loading_date)}</Typography></Box>
+      <Box><Typography color="text.secondary">Yola çıkış</Typography><Typography fontWeight={700}>{formatDate(sefer.started_at)}</Typography></Box>
+      <Box><Typography color="text.secondary">Varış</Typography><Typography fontWeight={700}>{formatDate(sefer.completed_at)}</Typography></Box>
     </Box>
 
     <Typography variant="h6" sx={{ mt: 4, mb: 1 }}>Sefere yüklenmiş paketler</Typography>
